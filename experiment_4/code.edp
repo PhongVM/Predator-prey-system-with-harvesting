@@ -1,0 +1,73 @@
+int N = 50;
+
+load "medit"
+
+border C1(t=0, 1) {x = t; y = 0;}
+border C2(t=0, 1) {x = 1; y = t;}
+border C3(t=1, 0) {x = t; y = 1;}
+border C4(t=1, 0) {x = 0; y = t;}
+
+mesh Th = buildmesh (C1(N) + C2(N) + C3(N) + C4(N));
+/*
+border C1(t=0, 100) {x = t; y = 0;}
+border C2(t=0, 100) {x = 100; y = t;}
+border C3(t=100, 0) {x = t; y = 100;}
+border C4(t=100, 0) {x = 0; y = t;}
+
+mesh Th = buildmesh (C1(N) + C2(N) + C3(N) + C4(N));
+*/
+
+
+fespace Vh(Th, P1);
+
+real d1 = 0, d2 = 0, alpha = 2 , beta = 0.7, gamma = 0.2, delta = 0.25376;
+real dt = 0.05, T = 100;
+
+
+real ustar = 1 - alpha + (alpha*(gamma + delta))/beta ;
+real vstar = ( (beta - gamma - delta) / (gamma + delta) ) * ustar;
+
+
+
+Vh u0 = 1;
+Vh v0 = 0.35;
+
+
+string folder = "a";
+ofstream file(folder + "//u_v_count.txt");
+Vh u, v, uold = u0(x, y), vold = v0(x, y), z, w;
+
+
+
+for(real t = 0; t <= T; t+=dt)
+{
+	solve Predator(v, z) = 
+	int2d(Th)( v*z/dt - beta*uold*v*z/( abs(uold) + abs(vold) ) + gamma*v*z + delta*v*z ) 
+	- int2d(Th)(vold*z/dt)
+	+ int2d(Th)(d2 * (dx(v)*dx(z) + dy(v)*dy(z)));
+
+	solve Prey(u, w) = 
+	int2d(Th)( u*w/dt - u*w + u*abs(uold)*w ) - int2d(Th)(uold*w/dt) 
+	+ int2d(Th)(d1 * (dx(u)*dx(w) + dy(u)*dy(w)) )
+	+ int2d(Th)(alpha*uold*v*w / ( abs(uold) + abs(vold)) );
+
+
+ 	//plot(u, nbiso=60, value=1, fill=1, cmm="prey");
+	//plot(v, nbiso=40, value=1, fill=1, cmm="predator" );
+	
+	vold = v;
+	uold = u;
+
+
+	real ucount = int2d(Th)(u); 
+	real vcount = int2d(Th)(v);
+
+	cout << t << endl;
+	
+	file << t << " ; " << ucount << " ; " << vcount << endl;
+
+
+	
+}
+
+file.flush;

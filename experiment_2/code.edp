@@ -1,0 +1,102 @@
+int N = 100;
+
+load "medit"
+/*
+border C1(t=0, 1) {x = t; y = 0;}
+border C2(t=0, 1) {x = 1; y = t;}
+border C3(t=1, 0) {x = t; y = 1;}
+border C4(t=1, 0) {x = 0; y = t;}
+*/
+//mesh Th = buildmesh (C1(N) + C2(N) + C3(N) + C4(N));
+
+border C1(t=0, 100) {x = t; y = 0;}
+border C2(t=0, 100) {x = 100; y = t;}
+border C3(t=100, 0) {x = t; y = 100;}
+border C4(t=100, 0) {x = 0; y = t;}
+
+mesh Th = buildmesh (C1(N) + C2(N) + C3(N) + C4(N));
+
+
+
+fespace Vh(Th, P1);
+
+real d1 = 0.02, d2 = 1, alpha = 1.5 , beta = 1, gamma = 0.01, delta = 0.42;
+real dt = 0.02, T = 1000;
+
+
+real ustar = 1 - alpha + (alpha*(gamma + delta))/beta ;
+real vstar = ( (beta - gamma - delta) / (gamma + delta) ) * ustar;
+
+
+
+Vh u0 = ustar;
+Vh v0 = vstar;
+int i;
+
+for (i=0; i < Vh.ndof; ++i)
+{
+	real x1 = randreal1();
+	real x2 = randreal1();
+	if (x2 < 0.5) 	
+		u0[][i]= u0[][i] + x1/1000;
+	else 
+		u0[][i]= u0[][i] - x1/1000;
+}
+
+for (i=0; i<Vh.ndof; ++i)
+{
+	real x1 = randreal1();
+	real x2 = randreal1();
+	if (x2 < 0.5) 	
+		v0[][i]= v0[][i] + x1/1000;
+	else 
+		v0[][i]= v0[][i] - x1/1000;
+}
+
+int count = 0, iter = 0;
+string folder = "d1="+d1+"_"+"d2="+d2+"_"+"dt="+dt+"_"+"T="+T+"_"+"N="+N;
+ofstream file(folder + "//u_v_count.txt");
+Vh u, v, uold = u0(x, y), vold = v0(x, y), z, w;
+
+savesol(folder + "//prey_solution//prey.0.sol", Th, u0);
+savesol(folder + "//predator_solution//predator.0.sol", Th, v0);
+
+savemesh(Th, folder + "//Th.mesh");
+for(real t = dt; t <= T; t+=dt)
+{
+	solve Predator(v, z) = 
+	int2d(Th)( v*z/dt - beta*uold*v*z/( abs(uold) + abs(vold) ) + gamma*v*z + delta*v*z ) 
+	- int2d(Th)(vold*z/dt)
+	+ int2d(Th)(d2 * (dx(v)*dx(z) + dy(v)*dy(z)));
+
+	solve Prey(u, w) = 
+	int2d(Th)( u*w/dt - u*w + u*abs(uold)*w ) - int2d(Th)(uold*w/dt) 
+	+ int2d(Th)(d1 * (dx(u)*dx(w) + dy(u)*dy(w)) )
+	+ int2d(Th)(alpha*uold*v*w / ( abs(uold) + abs(vold)) );
+
+
+ 	//plot(u, nbiso=60, value=1, fill=1, cmm="prey");
+	//plot(v, nbiso=40, value=1, fill=1, cmm="predator" );
+	
+	vold = v;
+	uold = u;
+
+
+	real ucount = int2d(Th)(u); 
+	real vcount = int2d(Th)(v);
+	
+	file << t << " ; " << ucount << " ; " << vcount << endl;
+	count++;
+	
+
+	cout << t << endl;
+
+	if (count == 25){
+		iter++;
+		savesol(folder + "//prey_solution//prey."+iter+".sol", Th, u);
+		savesol(folder + "//predator_solution//predator."+iter+".sol", Th, v);
+		count = 0;
+	}
+}
+
+file.flush;

@@ -1,0 +1,103 @@
+load "ppm2rnm"
+load "isoline"
+load "medit"
+
+real[int, int] Curves(3, 1);              
+int[int] be(1);                             
+real[int, int] ff1("TN3.pgm");              	
+int nx = ff1.n, ny = ff1.m;				
+mesh Th = square(nx-1, ny-1, [(nx-1) * (x), (ny-1) * (1-y)]);
+fespace Vh(Th, P1);
+Vh f1;
+f1[] = ff1;
+int nc = isoline(Th, f1, iso=0.2, Curves, beginend=be);
+cout << "number of isoline curves: " << nc << endl;
+border C0(t=0,1){int c = 0; P=Curve(Curves,be[2 * c],be[2 * c+1]-1,t);}
+border C1(t=0,1){int c = 2; P=Curve(Curves,be[2 * c],be[2 * c+1]-1,t);}
+
+int n = 400;
+Th = buildmesh(C0(-n)+C1(-n/2)); //C0 là biên ngoài, C1 là biên trong
+
+
+
+real d1 = 1, d2 = 1, alpha = 1 , beta = 0.83, gamma = 0.46, delta = 0;
+real dt = 0.05, T = 94;
+
+real ustar = 1 - alpha + (alpha*(gamma + delta))/beta ;
+real vstar = ( (beta - gamma - delta) / (gamma + delta) ) * ustar;
+
+Vh u0 = ustar;
+Vh v0 = vstar;
+int i;
+
+for (i=0; i < Vh.ndof; ++i)
+{
+	real x1 = randreal1();
+	real x2 = randreal1();
+	if (x2 < 0.5) 	
+		u0[][i]= u0[][i] + x1/100;
+	else 
+		u0[][i]= u0[][i] - x1/100;
+}
+
+for (i=0; i<Vh.ndof; ++i)
+{
+	real x1 = randreal1();
+	real x2 = randreal1();
+	if (x2 < 0.5) 	
+		v0[][i]= v0[][i] + x1/10;
+	else 
+		v0[][i]= v0[][i] - x1/10;
+}
+
+int count = 0, iter = 0;
+
+ofstream file("u_v_count.txt");
+
+Vh u, v, uold = u0, vold = v0, z, w;
+
+savesol("prey_solution//prey.0.sol", Th, uold);
+savesol("predator_solution//predator.0.sol", Th, vold);
+
+savemesh(Th,"Th.mesh");
+for(real t = 0; t <= T; t+=dt)
+{
+	solve Predator(v, z) = 
+	int2d(Th)( v*z/dt - beta*uold*v*z/( abs(uold) + abs(vold) ) + gamma*v*z + delta*v*z ) 
+	- int2d(Th)(vold*z/dt)
+	+ int2d(Th)(d2 * (dx(v)*dx(z) + dy(v)*dy(z))) + on(C1, v = 0);
+
+	solve Prey(u, w) = 
+	int2d(Th)( u*w/dt - u*w + u*abs(uold)*w ) - int2d(Th)(uold*w/dt) 
+	+ int2d(Th)(d1 * (dx(u)*dx(w) + dy(u)*dy(w)) )
+	+ int2d(Th)(alpha*uold*v*w / ( abs(uold) + abs(vold)) ) + on(C1, u = 0);
+
+
+ 	plot(u, nbiso=60, value=1, fill=1, cmm="prey");
+	//plot(v, nbiso=40, value=1, fill=1, cmm="predator" );
+	
+	vold = v;
+	uold = u;
+
+
+	real ucount = int2d(Th)(u); 
+	real vcount = int2d(Th)(v);
+	
+	file << t << " ; " << ucount << " ; " << vcount << endl;
+	count++;
+
+
+	cout << t << endl;
+
+	if (count == 20){
+		iter++;
+		savesol( "prey_solution//prey."+iter+".sol", Th, u);
+		
+		savesol("predator_solution//predator."+iter+".sol", Th, v);
+		
+		count = 0;
+		
+	}
+}
+
+file.flush;

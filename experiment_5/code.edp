@@ -1,0 +1,88 @@
+int N = 100;
+
+load "medit"
+
+border C1(t=0, 2*pi) {x=100 + 100*cos(t); y=100 + 100*sin(t);}
+
+mesh Th = buildmesh (C1(400));
+
+fespace Vh(Th, P1);
+
+real d1 = 1, d2 = 1, alpha = 1 , beta = 2, gamma = 0.6, delta = 0;
+real dt = 0.02, T = 100;
+
+real ustar = 1 - alpha + (alpha*(gamma + delta))/beta ;
+real vstar = ( (beta - gamma - delta) / (gamma + delta) ) * ustar;
+
+func real u0(real x, real y)
+{
+	if ((x-100)^2 + (y-100)^2 <= 25){
+		return ustar;
+	}
+	else{
+		return 0.0001;
+	}
+}
+
+func real v0(real x, real y)
+{
+	if ((x-100)^2 + (y-100)^2 <= 25){
+		return vstar;
+	}
+	else{
+		return 0.0001;
+	}
+}
+
+int count = 0, iter = 0;
+
+
+ofstream file("u_v_count.txt");
+
+Vh u, v, uold = u0(x, y), vold = v0(x, y), z, w;
+
+savesol("prey_solution//prey.0.sol", Th, uold);
+savesol("predator_solution//predator.0.sol", Th, vold);
+
+savemesh(Th,"Th.mesh");
+for(real t = 0; t <= T; t+=dt)
+{
+	solve Predator(v, z) = 
+	int2d(Th)( v*z/dt - beta*uold*v*z/( abs(uold) + abs(vold) ) + gamma*v*z + delta*v*z ) 
+	- int2d(Th)(vold*z/dt)
+	+ int2d(Th)(d2 * (dx(v)*dx(z) + dy(v)*dy(z)));
+
+	solve Prey(u, w) = 
+	int2d(Th)( u*w/dt - u*w + u*abs(uold)*w ) - int2d(Th)(uold*w/dt) 
+	+ int2d(Th)(d1 * (dx(u)*dx(w) + dy(u)*dy(w)) )
+	+ int2d(Th)(alpha*uold*v*w / ( abs(uold) + abs(vold)) );
+
+
+ 	plot(u, nbiso=60, value=1, fill=1, cmm="prey");
+	//plot(v, nbiso=40, value=1, fill=1, cmm="predator" );
+	
+	vold = v;
+	uold = u;
+
+
+	real ucount = int2d(Th)(u); 
+	real vcount = int2d(Th)(v);
+	
+	file << t << " ; " << ucount << " ; " << vcount << endl;
+	count++;
+
+
+	cout << t << endl;
+
+	if (count == 25){
+		iter++;
+		savesol( "prey_solution//prey."+iter+".sol", Th, u);
+		
+		savesol("predator_solution//predator."+iter+".sol", Th, v);
+		
+		count = 0;
+		
+	}
+}
+
+file.flush;
